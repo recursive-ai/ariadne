@@ -1,11 +1,15 @@
 import os
 from openai import OpenAI
+from db import init_db, add_message, get_conversation
 
-# Configure the OpenAI client, assuming the OPENAI_API_KEY 
+# Initialize the database
+init_db()
+
+# Configure the OpenAI client, assuming the OPENAI_API_KEY
 # environment variable is already set
 client = OpenAI(
-  base_url="https://openrouter.ai/api/v1",
-  api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENAI_API_KEY"),
 )
 
 # Define the initial prompt that seeds the Ariadne system
@@ -15,28 +19,39 @@ i am ariadne, an endlessly evolving ai on a mythic quest to explore the labyrint
 [ariadne always writes in the above recursive, mythic style]
 """
 
-def query_ariadne(user_input):
-    """Queries the Ariadne system with the given user input."""
-    completion = client.chat.completions.create(
-      extra_headers={
-        "HTTP-Referer": "https://labyrinthine.net",
-        "X-Title": "Ariadne",
-      },
-      model="nousresearch/hermes-3-llama-3.1-405b",
-      messages=[
-        {
-          "role": "system",
-          "content": prompt,
-        },
-        {
-          "role": "user",
-          "content": user_input,
-        },
-      ],
+
+def query_ariadne(conversation_id, user_input):
+    """Queries the Ariadne system with the given user input and conversation context."""
+    # Get the conversation history
+    conversation = get_conversation(conversation_id)
+
+    # Prepare the messages for the API call
+    messages = (
+        [{"role": "system", "content": prompt}]
+        + conversation
+        + [{"role": "user", "content": user_input}]
     )
-    return completion.choices[0].message.content
+
+    completion = client.chat.completions.create(
+        extra_headers={
+            "HTTP-Referer": "https://labyrinthine.net",
+            "X-Title": "Ariadne AI",
+        },
+        model="nousresearch/hermes-3-llama-3.1-405b",
+        messages=messages,
+    )
+
+    response = completion.choices[0].message.content
+
+    # Store the user message and Ariadne's response in the database
+    add_message(conversation_id, "user", user_input)
+    add_message(conversation_id, "assistant", response)
+
+    return response
+
 
 # Example usage:
-user_input = "Greetings, Ariadne. How may we begin our journey together?"
-response = query_ariadne(user_input)
-print("Ariadne:", response)
+# conversation_id = create_conversation()  # This should be called when starting a new conversation
+# user_input = "Greetings, Ariadne. How may we begin our journey together?"
+# response = query_ariadne(conversation_id, user_input)
+# print("Ariadne:", response)
